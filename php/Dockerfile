@@ -1,35 +1,35 @@
 FROM php:7.4-fpm
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        libmemcached-dev \
-        libz-dev \
-        libpq-dev \
-        libjpeg62-turbo-dev \
-        libpng-dev \
-        libfreetype6-dev \
-        libssl-dev \
-        libmcrypt-dev
+ARG BUILD_DATE
+ARG VCS_REF
 
-# Install the PHP pdo_mysql extension
-RUN docker-php-ext-install pdo_mysql
+# Set correct environment variables
+ENV IMAGE_USER=php
+ENV HOME=/home/$IMAGE_USER
+ENV COMPOSER_HOME=$HOME/.composer
+ENV PATH=$HOME/.yarn/bin:$PATH
+ENV GOSS_VERSION="0.3.8"
+ENV PHP_VERSION=7.4
 
+USER root
 
-# Install the PHP gd library
-RUN docker-php-ext-configure gd \
-        --with-jpeg \
-        --with-freetype && \
-    docker-php-ext-install gd
+WORKDIR /tmp
 
-# Install Xdebug
-RUN pecl install xdebug && docker-php-ext-enable xdebug
-COPY ./xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+# COPY INSTALL SCRIPTS
+COPY --from=composer:1 /usr/bin/composer /usr/bin/composer
+COPY ./php/scripts/*.sh /tmp/
+RUN chmod +x /tmp/*.sh
 
-# Install ZIP
-RUN pecl install zip && docker-php-ext-enable zip
-
-# Install composer
-RUN curl -sS https://getcomposer.org/installer | php
-RUN mv composer.phar /usr/local/bin/composer
+# Install
+RUN bash ./packages.sh \
+  && bash ./extensions.sh \
+  && bash ./node.sh \
+  && adduser --disabled-password --gecos "" $IMAGE_USER && \
+  echo "$IMAGE_USER  ALL = ( ALL ) NOPASSWD: ALL" >> /etc/sudoers && \
+  mkdir -p /var/www/html && \
+  chown -R $IMAGE_USER:$IMAGE_USER /var/www $HOME \
+  && composer global require "hirak/prestissimo:^0.3"  \
+  && rm -rf ~/.composer/cache/* \
+  && chown -R $IMAGE_USER:$IMAGE_USER $COMPOSER_HOME \
+  && curl -fsSL https://goss.rocks/install | GOSS_VER=v${GOSS_VERSION} sh \
+  && bash ./cleanup.sh
