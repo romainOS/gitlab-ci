@@ -19,7 +19,6 @@ RUN docker-php-ext-install pdo_mysql
 
 # Install the PHP gd library
 RUN docker-php-ext-configure gd \
-        --enable-gd-native-ttf \
         --with-jpeg \
         --with-freetype && \
     docker-php-ext-install gd
